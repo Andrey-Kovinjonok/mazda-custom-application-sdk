@@ -90,56 +90,60 @@ var CustomApplicationLog = {
 
 	__message: function(level, color, values) {
 
-		if(this.enabledLogger || this.enabledConsole) {
+		var msg = [];
+		if(values.length > 1) {
+			values.forEach(function(value, index) {
 
-			var msg = [];
-			if(values.length > 1) {
-				values.forEach(function(value, index) {
+				if(index > 0) {
 
-					if(index > 0) {
+					switch(true) {
 
-						switch(true) {
+						case CustomApplicationHelpers.is().iterable(value):
 
-							case CustomApplicationHelpers.is().iterable(value):
+							CustomApplicationHelpers.iterate(value, function(key, value, obj) {
 
-								CustomApplicationHelpers.iterate(value, function(key, value, obj) {
+								msg.push(obj ? CustomApplicationHelpers.sprintr("[{0}={1}]", key, value) : CustomApplicationHelpers.sprintr("[{0}]", value));
 
-									msg.push(obj ? CustomApplicationHelpers.sprintr("[{0}={1}]", key, value) : CustomApplicationHelpers.sprintr("[{0}]", value));
+							});
+							break;
 
-								});
-								break;
-
-							default:
-								msg.push(value);
-								break;
-						}
+						default:
+							msg.push(value);
+							break;
 					}
-
-				});
-			}
-
-			try {
-				if(this.enabledLogger && typeof(Logger) != "undefined") {
-					Logger.log(level, values[0], msg.join(" "), color);
 				}
 
-				if(typeof(DevLogger) != "undefined") {
-					DevLogger.log(level, values[0], msg.join(" "), color);
-				}
-			} catch(e) {
-				// do nothing
+			});
+		}
+
+		try {
+			if(this.enabledLogger && typeof(Logger) != "undefined") {
+				Logger.log(level, values[0], msg.join(" "), color);
 			}
 
-			try {
-				console.log(
-					CustomApplicationHelpers.sprintr("%c[{0}] [{1}] ", (new Date()).toDateString(), values[0]) +
-					CustomApplicationHelpers.sprintr("%c{0}", msg.join(" ")),
+			if(typeof(DevLogger) != "undefined") {
+				DevLogger.log(level, values[0], msg.join(" "), color);
+			}
+		} catch(e) {
+			// do nothing
+		}
+
+		try {
+			var message = msg.join(" ");
+
+			if(this.enabledConsole) {
+				 console.warn(
+				 	CustomApplicationHelpers.sprintr("%c[{0}] [{1}] ", (new Date()).toDateString(), values[0]) + '%c' + message,
+					'%c' + timeMessage + '%c' + message,
 					"color:black",
 					CustomApplicationHelpers.sprintr("color:{0}", color)
 				);
-			} catch(e) {
-				// do nothing
+			} else {
+				console.warn('[' + (values[0] ? values[0] : 'console') + '] ' + message);
 			}
+		} catch(e) {
+			// do nothing
 		}
+
 	}
 };

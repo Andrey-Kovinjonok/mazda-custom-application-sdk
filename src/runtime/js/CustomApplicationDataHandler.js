@@ -390,16 +390,15 @@ var CustomApplicationDataHandler = {
 
 			if(!this.paused) {
 
-				if(CustomApplicationsHandler.currentApplicationId) {
+				if(CustomApplicationsHandler.getCurrentApplicationId()) {
 
 					this.retrieve();
 
 				} else {
-
+					
 					this.next();
 				}
 			}
-
 		}.bind(this), this.refreshRate)
 	},
 

@@ -164,6 +164,14 @@ gulp.task('build-system', function(callback) {
     );
 });
 
+// (build system)
+gulp.task('update-system', function(callback) {
+    runSequence(
+        'system-runtime-js',
+        callback
+    );
+});
+
 
 /**
  * (build) install deploy image

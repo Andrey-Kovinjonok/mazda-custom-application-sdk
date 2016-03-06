@@ -85,6 +85,8 @@ var CustomApplicationsHandler = {
 			// initialize
 			if(!this.initialized) this.initialize();
 
+							console.log("hitting retrieve");
+
 			// load libraries
 			this.loader.loadJavascript("jquery.js", this.paths.vendor, function() {
 
@@ -92,8 +94,12 @@ var CustomApplicationsHandler = {
 
 					this.loader.loadJavascript("apps.js", this.paths.applications, function() {
 
+		
+
 						// this has been completed
 						if(typeof(CustomApplications) != "undefined") {
+
+							console.log("got all the apps");
 
 							// load applications
 							this.loader.loadJavascript(
@@ -102,6 +108,8 @@ var CustomApplicationsHandler = {
 								function() {
 									// all applications are loaded, run data
 									CustomApplicationDataHandler.initialize();
+
+
 
 									// create menu items
 									callback(this.getMenuItems());
@@ -116,6 +124,8 @@ var CustomApplicationsHandler = {
 			}.bind(this)); // jquery library
 
 		} catch(e) {
+
+			console.log(e);
 
 			// error message
 			this.log.error(this.__name, "Error while retrieving applications", e);
@@ -167,12 +177,12 @@ var CustomApplicationsHandler = {
 
 	launch: function(id) {
 
-		this.log.info(this.__name, {id: id}, "Launch request for application");
-
 		if(CustomApplicationHelpers.is().object(id)) {
 
 			id = id.appId ? id.appId : false;
 		}
+
+		this.log.info(this.__name, {id: id}, "Launch request for application");
 
 		if(this.applications[id]) {
 
@@ -220,6 +230,8 @@ var CustomApplicationsHandler = {
 
 			if(this.applications[applicationId]) {
 
+				this.currentApplicationId = applicationId;
+
 				return this.applications[applicationId];
 			}
 
@@ -234,12 +246,21 @@ var CustomApplicationsHandler = {
 	},
 
 	/**
+	 * (getCurrentApplicationId)
+	 */
+
+	getCurrentApplicationId: function() {
+		return this.currentApplicationId;
+	},
+
+
+	/**
 	 * (notifyDataChange) notifies the active application about a data change
 	 */
 
 	notifyDataChange: function(id, payload) {
 
-		if(this.currentApplicationId && this.applications[this.currentApplicationId]) {
+		if(this.currentApplicationId !== false && this.applications[this.currentApplicationId]) {
 
 			this.applications[this.currentApplicationId].__notify(id, payload);
 

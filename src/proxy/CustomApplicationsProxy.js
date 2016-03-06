@@ -25,40 +25,64 @@
  */
 
 /**
+ * (Global Error Reporting)
+ */
+
+window.onerror = function() {
+	console.error(arguments);
+}
+
+
+/**
  * (CustomApplicationsProxy)
  *
  * Registers itself between the JCI system and CustomApplication runtime.
  */
 
+var CustomApplicationsProxyInstance = false;
 
-(function() {
+var CustomApplicationsProxy = (function(){
 
-	// global value, indicating the bootstrapping status - avoid infinite loop
-	if(typeof(window.CustomApplicationsProxyBootstrapped) == "undefined") {
-		window.CustomApplicationsProxyBootstrapped = false;
-	};
 
-	// Proxy class
-	window.CustomApplicationsProxy = {
+	function CustomApplicationsProxy() {
 
-		/**
-		 * (locals)
-		 */
+		// singelton
+		if(CustomApplicationsProxyInstance) return this = CustomApplicationsProxyInstance;
 
-		debug: false,
+		// assing debug flag
+		this._debug = false;
 
-		systemAppId: 'system',
-		systemAppCategory: 'Applications',
+		// assign bootstrap flag
+		this._bootstrapped = false;
 
-		proxyAppName: 'vdt',
-		proxyAppContext: 'DriveChartDetails',
-		proxyMmuiEvent: 'SelectDriveRecord',
+		// assign attributes for configuration
+		this._systemAppId = 'system',
+		this._systemAppCategory = 'Applications',
 
-		targetAppName: 'custom',
-		targetAppContext: 'Surface',
+		this._proxyAppName = 'vdt',
+		this._proxyAppContext = 'DriveChartDetails',
+		this._proxyMmuiEvent = 'SelectDriveRecord',
 
-		isBootstrapped: false,
+		this._targetAppName = 'custom',
+		this._targetAppContext = 'Surface',
 
+		// add event handler
+		if(window.opera) {
+			window.opera.addEventListener('AfterEvent.load', function (e) {
+				this.bootstrap();
+			}.bind(this));
+		} else {
+			setTimeout(function() {
+				this.bootstrap();
+			}.bind(this), 2000);
+		}
+	}
+
+	/**
+	 * Prototype declaration
+	 */
+
+	CustomApplicationsProxy.prototype = {
 
 		/**
 		 * (bootstrap)
@@ -69,20 +93,21 @@
 		 bootstrap: function() {
 
 			// verify that core objects are available
-			if(typeof framework === 'object' && framework._currentAppUiaId === this.systemAppId) {
+			if(!this._bootstrapped && typeof(framework) === "object") {
 
-				// retrieve system app
-				var systemApp = framework.getAppInstance(this.systemAppId),
-					result = true;
+				// check app
+				if(framework._currentAppUiaId === this._systemAppId && !this._bootstrapped) {
 
-				// verify bootstrapping - yeah long name
-				if(!window.CustomApplicationsProxyBootstrapped) {
+					// retrieve system app
+					var systemApp = framework.getAppInstance(this._systemAppId),
+						result = false;
 
-					// set to strap - if everything fails - no harm is done :-)
-					window.CustomApplicationsProxyBootstrapped = true;
+					// verify bootstrapping - yeah long name
+					if(typeof(systemApp) === "object") {
 
-					// let's boostrap
-					try {
+						console.warn("-------------------------------------");
+						console.warn("Initializing CustomApplications Proxy");
+						console.warn("-------------------------------------");
 
 						// overwrite list2 handler
 						systemApp._contextTable[this.systemAppCategory].controlProperties.List2Ctrl.selectCallback = this.menuItemSelectCallback.bind(systemApp);
@@ -108,16 +133,14 @@
 						// assign template transition
 						framework.transitionsObj._genObj._TEMPLATE_CATEGORIES_TABLE.SurfaceTmplt = 'Detail with UMP';
 
-					} catch(e) {
-						// bootstrapping process failed - we just leave it here
-						result = false;
-					}
-				}
+						// set to strap - if everything fails - no harm is done :-)
+						window.CustomApplicationsProxyBootstrapped = true;
 
-				// process if no error occured
-				if(result) {
-					// kick off loader - implemention only for sdcard right now
-					this.prepareCustomApplications();
+						// only attach if we have successfully bootstrapped the apps
+						setTimeout(function() {
+							CustomApplicationsProxy.prepareCustomApplications();
+						}, 20); 
+					}
 				}
 			}
 		},
@@ -129,35 +152,25 @@
 
 		menuItemSelectCallback: function(listCtrlObj, appData, params) {
 
-			try {
-
 		    var proxy = CustomApplicationsProxy;
 
-			 	if(appData.mmuiEvent == "SelectCustomApplication") {
+		 	if(appData.mmuiEvent == "SelectCustomApplication") {
 
-					// exit if handler is not available
-					if(typeof(CustomApplicationsHandler) != "undefined") {
+				// exit if handler is not available
+				if(typeof(CustomApplicationsHandler) != "undefined") {
 
-						// launch app
-						if(CustomApplicationsHandler.launch(appData)) {
+					// launch app
+					if(CustomApplicationsHandler.launch(appData)) {
 
-							// clone app data
-							try {
-								appData = JSON.parse(JSON.stringify(appData));
+						// clone app data
+						appData = JSON.parse(JSON.stringify(appData));
 
-								// set app data
-								appData.appName = proxy.proxyAppName;
-								appData.mmuiEvent = proxy.proxyMmuiEvent;
-							} catch(e) {
-								// do nothing
-							}
-			  	 	}
-			  	}
-			  }
-
-			} catch(e) {
-				// do nothing
-			}
+						// set app data
+						appData.appName = proxy.proxyAppName;
+						appData.mmuiEvent = proxy.proxyMmuiEvent;
+					}
+		  	 	}
+		  	}
 
 			// pass to original handler
 			this._menuItemSelectCallback(listCtrlObj, appData, params);
@@ -170,15 +183,17 @@
 
 		sendEventToMmui: function(uiaId, eventId, params, fromVui) {
 
-    		var proxy = CustomApplicationsProxy,
-    			currentUiaId = this.getCurrentApp(),
-    			currentContextId = this.getCurrCtxtId();
+			var proxy = CustomApplicationsProxy,
+				currentUiaId = this.getCurrentApp(),
+				currentContextId = this.getCurrCtxtId();
 
-    		// proxy overwrites
+			// proxy overwrites
 		    if(currentUiaId == proxy.targetAppName) {
 		    	currentUiaId = this.proxyAppName;
 		    	currentContextId = this.proxyAppContext;
 		    }
+
+		    console.log(uiaId, eventId, params, fromVui);
 
 		    // pass to original handler
 		    this.overwriteSendEventToMmui(uiaId, eventId, params, fromVui, currentUiaId, currentContextId);
@@ -191,53 +206,49 @@
 
 		routeMmuiMsg: function(jsObject) {
 
-			try {
+			var proxy = CustomApplicationsProxy,
+				jsObjectModified = jsObject;
 
-				var proxy = CustomApplicationsProxy,
-					jsObjectModified = jsObject;
+			// validate routing message
+			switch(jsObjectModified.msgType) {
 
-				// validate routing message
-				switch(jsObjectModified.msgType) {
+				// magic switch
+				case 'ctxtChg':
+					if(jsObjectModified.uiaId == proxy.proxyAppName) {
+						jsObjectModified.uiaId = proxy.targetAppName;
+						jsObjectModified.ctxtId = proxy.targetAppContext;
+					}
+					break;
 
-					// magic switch
-					case 'ctxtChg':
-						if(jsObjectModified.uiaId == proxy.proxyAppName) {
-							jsObjectModified.uiaId = proxy.targetAppName;
-							jsObjectModified.ctxtId = proxy.targetAppContext;
-						}
-						break;
+				// check if our proxy app is in the focus stack
+				case 'focusStack':
 
-					// check if our proxy app is in the focus stack
-					case 'focusStack':
+					if(jsObjectModified.appIdList && jsObjectModified.appIdList.length) {
+						for(var i = 0; i < jsObjectModified.appIdList.length; i++) {
+							var appId = jsObjectModified.appIdList[i];
+							if(appId.id == proxy.proxyAppName) {
+								appId.id = proxy.targetAppName;
+							}
+						};
+					}
 
-						if(jsObjectModified.appIdList && jsObjectModified.appIdList.length) {
-							for(var i = 0; i < jsObjectModified.appIdList.length; i++) {
-								var appId = jsObjectModified.appIdList[i];
-								if(appId.id == proxy.proxyAppName) {
-									appId.id = proxy.targetAppName;
-								}
-							};
-						}
+				case 'msg':
+				case 'alert':
 
-					case 'msg':
-					case 'alert':
+					if(jsObjectModified.uiaId == proxy.proxyAppName) {
+						jsObjectModified.uiaId = proxy.targetAppName;
+					}
 
-						if(jsObjectModified.uiaId == proxy.proxyAppName) {
-							jsObjectModified.uiaId = proxy.targetAppName;
-						}
-
-						break;
-					default:
-						// do nothing
-						break;
-				}
-
-				// assign to original jsObject
-				jsObject = jsObjectModified;
-
-			} catch(e) {
-				// do nothing
+					break;
+				default:
+					// do nothing
+					break;
 			}
+
+			// assign to original jsObject
+			jsObject = jsObjectModified;
+
+			// overwrite
 
 			this.overwriteRouteMmmuiMsg(jsObject);
 		},
@@ -276,7 +287,7 @@
 
 		    try {
 
-		        if(typeof(CustomApplicationsHandler) == "undefined") {
+		        if(typeof(CustomApplicationsHandler) === "undefined") {
 
 		        	// clear
 		        	clearTimeout(this.loadTimer);
@@ -309,6 +320,7 @@
 		        }
 
 		    } catch(e) {
+
 		        // if this fails, we won't attempt again because there could be issues with the actual handler
 		        setTimeout(function() {
 
@@ -324,12 +336,14 @@
 
 		initCustomApplicationsDataList: function() {
 		    // extend with custom applications
-		    try {
-		        if(typeof(CustomApplicationsHandler) != "undefined") {
 
-		            CustomApplicationsHandler.retrieve(function(items) {
+	        if(typeof(CustomApplicationsHandler) != "undefined") {
 
-		            	var systemApp = framework.getAppInstance(this.systemAppId);
+	            CustomApplicationsHandler.retrieve(function(items) {
+
+	            	var systemApp = framework.getAppInstance(this.systemAppId);
+
+	            	if(systemApp) {
 
 		                items.forEach(function(item) {
 
@@ -340,28 +354,16 @@
 		                    framework.common._contextCategory._contextCategoryTable[item.appData.appName + '.*'] = 'Applications';
 
 		                }.bind(this));
+		            }
 
-		            }.bind(this));
-		        }
-		    } catch(e) {
-		    	// failed to register applications
-		    }
+	            }.bind(this));
+	        }
 		},
-
 	}
 
-}.call(window));
+	return CustomApplicationsProxy;
 
-/**
- * Runtime Caller
- */
-
-(function () {
-	if(window.opera) {
-		window.opera.addEventListener('AfterEvent.load', function (e) {
-			CustomApplicationsProxy.bootstrap();
-		});
-	}
 })();
+
 
 /** EOF **/
